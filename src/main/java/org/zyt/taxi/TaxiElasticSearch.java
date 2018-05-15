@@ -33,6 +33,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -109,7 +112,7 @@ public class TaxiElasticSearch {
 	            .startObject("endTime").field("type", "date").endObject()
 	            .startObject("afterLength").field("type", "double").endObject()
 	            .startObject("avgSpeed").field("type", "double").endObject()
-	            .startObject("carID").field("type", "text").endObject()
+	            .startObject("carID").field("type", "text").field("fielddata", true).endObject()
 	            .startObject("startPoint")
 	                .field("type", "geo_point").endObject()
 	            .startObject("endPoint")
@@ -128,8 +131,14 @@ public class TaxiElasticSearch {
 	
 	// 按起始时间、终止时间、车辆编号、起始点位置、终止点位置查询轨迹
 	public static List<String> searchIndexTaxiRoute(String startTime, String endTime, String carID, 
-			List<GeoPoint> startPointArea, List<GeoPoint> endPointArea) throws UnknownHostException{
+			List<GeoPoint> startPointArea, List<GeoPoint> endPointArea, String maxView) throws UnknownHostException{
 		getClient();
+		// 最大返回数
+		int maxNum = 10000;
+		if(maxView != null && maxView != ""){
+			 maxNum = Integer.parseInt(maxView);
+		}
+		
 		//时间范围的设定
         RangeQueryBuilder rangequerybuilder1 = QueryBuilders
                     .rangeQuery("startTime")
@@ -181,7 +190,7 @@ public class TaxiElasticSearch {
         
         SearchResponse myresponse=responsebuilder
         			.setSource(sourceBuilder)
-                    .setFrom(0).setSize(1000) //分页
+                    .setFrom(0).setSize(maxNum) //分页
                     .setExplain(true)
                     .execute()
                     .actionGet();
@@ -197,10 +206,37 @@ public class TaxiElasticSearch {
         return res;
 	}
 	
+	// 聚合，获取车辆数，总数，起始终止时间等
+	public static String getCarNum() throws UnknownHostException {
+		int carNum = 0;
+		String minmaxDate = "";
+		getClient();
+		SearchRequestBuilder sbuilder = client.prepareSearch("taxi-route").setTypes("info");
+		
+		// terms聚合，获得carID个数
+		AggregationBuilder teamAgg= AggregationBuilders.terms("carID_count").field("carID");
+		sbuilder.addAggregation(teamAgg);
+		SearchResponse response = sbuilder.execute().actionGet();
+        Terms agg = response.getAggregations().get("carID_count"); 
+        carNum = agg.getBuckets().size();
+
+		// 统计记录总数
+        SearchHits hits = response.getHits();
+        
+        // stats聚合，获得日期的最大最小值
+		teamAgg= AggregationBuilders.stats("minDate_count").field("startTime");
+		sbuilder.addAggregation(teamAgg);
+		SearchResponse response2 = sbuilder.execute().actionGet();
+		minmaxDate = response2.getAggregations().get("minDate_count").toString();
+
+        closeClient();	
+		return "{\"totalNum\":" + hits.totalHits + ", \"carNum\":" + carNum + ", \"dateInfo\":" + minmaxDate  + "}";
+	}
+	
 	public static void main(String[] args) throws UnknownHostException {
-		List<String> reStrings = searchIndexTaxiRoute(null,null,"",null,null);
+		List<String> reStrings = searchIndexTaxiRoute(null,null,"",null,null,"");
 		System.out.println(reStrings.size());
-		 reStrings = searchIndexTaxiRoute("1391110839","1391110838","MMC8000GPSANDASYN051113-30346-00000000",null, null);
+		 reStrings = searchIndexTaxiRoute("1391110839","1391110838","MMC8000GPSANDASYN051113-30346-00000000",null, null,"");
 System.out.println(reStrings);
 	}
 	// 

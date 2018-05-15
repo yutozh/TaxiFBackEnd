@@ -38,10 +38,10 @@ public class TaxiInsert {
 //                // 删除表、索引表
                 TaxiElasticSearch.deleteIndex(tableName1);
                 TaxiHbase.dropTable(tableName1);
-                TaxiHbase.dropTable(tableName2);
+//                TaxiHbase.dropTable(tableName2);
                 // 创建表（已存在自动跳过）
                 TaxiHbase.createTable(tableName1, new String[]{colFamily});
-                TaxiHbase.createTable(tableName2, new String[]{colFamily});
+//                TaxiHbase.createTable(tableName2, new String[]{colFamily});
                // 创建索引表（已存在自动跳过）
                 TaxiElasticSearch.createIndex(tableName1, colFamily, TaxiElasticSearch.getTaxiRouteMappingJson());
                 
@@ -106,7 +106,7 @@ public class TaxiInsert {
 							String lng = tp.split(" ")[1];
 							String timestamp = tp.split(" ")[2];
 							
-							// 轨迹表，一条轨迹一行，轨迹拼凑成字符串，存成一列(格式：轨迹点个数+基础X+基础Y+第一个点偏移X++第一个点偏移Y......)
+							// 轨迹表，一条轨迹一行，轨迹拼凑成字符串，存成一列
 							ptList.add(geoLongToFloat(lat));
 							ptList.add(geoLongToFloat(lng));
 							
@@ -114,13 +114,13 @@ public class TaxiInsert {
 							
 							// 轨迹点表， 一个轨迹点一行
 							// 轨迹点表行键组成： GeoHash+“ ”+时间
-							GeoHash pointHash = GeoHash.withCharacterPrecision(Integer.parseInt(lat)/1000000.0, Integer.parseInt(lng)/1000000.0, 11);
-							String pointHashStr = pointHash.toBase32();
-							Put put2 = new Put((pointHashStr+" "+timestamp).getBytes());
-							put2.addColumn(colFamily.getBytes(), "lat".getBytes(), lat.getBytes());
-							put2.addColumn(colFamily.getBytes(), "lng".getBytes(), lng.getBytes());
-							put2.addColumn(colFamily.getBytes(), "carID".getBytes(), carID.getBytes());
-							TaxiHbase.insertIntoTable(tableName2, put2);
+//							GeoHash pointHash = GeoHash.withCharacterPrecision(Integer.parseInt(lat)/1000000.0, Integer.parseInt(lng)/1000000.0, 11);
+//							String pointHashStr = pointHash.toBase32();
+//							Put put2 = new Put((pointHashStr+" "+timestamp).getBytes());
+//							put2.addColumn(colFamily.getBytes(), "lat".getBytes(), lat.getBytes());
+//							put2.addColumn(colFamily.getBytes(), "lng".getBytes(), lng.getBytes());
+//							put2.addColumn(colFamily.getBytes(), "carID".getBytes(), carID.getBytes());
+//							TaxiHbase.insertIntoTable(tableName2, put2);
 						}
 						
 						StringBuilder csvBuilder = new StringBuilder();

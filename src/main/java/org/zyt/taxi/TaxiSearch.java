@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 public class TaxiSearch {
 
-	public static ByteArrayOutputStream searchRoute(String startTime, String endTime, String carID, String startAreaString, String endAreaString) throws IOException {
+	public static ByteArrayOutputStream searchRoute(String startTime, String endTime, String carID, String startAreaString, String endAreaString, String maxView) throws IOException {
 
 		List<GeoPoint> s1 = new ArrayList<GeoPoint>();
 		List<GeoPoint> s2 = new ArrayList<GeoPoint>();
@@ -38,7 +38,7 @@ public class TaxiSearch {
 		
 
 		
-		List<String> resES = TaxiElasticSearch.searchIndexTaxiRoute(startTime, endTime, carID, s1, s2);
+		List<String> resES = TaxiElasticSearch.searchIndexTaxiRoute(startTime, endTime, carID, s1, s2, maxView);
 		List<String> resHb = new ArrayList<String>();
 		
 		// 字节流
@@ -69,6 +69,6 @@ public class TaxiSearch {
     }  
 	public static void main(String[] args) throws IOException{
 
-		System.out.println(searchRoute("1391110839","1391110838",null,null,null));
+		System.out.println(searchRoute("1391110839","1391110838",null,null,null,""));
 	}
 }
