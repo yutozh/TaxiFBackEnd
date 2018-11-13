@@ -55,7 +55,7 @@ public class TaxiSearch {
 		TaxiHbase.close();
 
 //		String resString = "{\"result\":" + resHb.toString() + "}";
-		
+//		System.out.println(resString);
 		return baos;
 	}
     public static byte[] getBytes(int data)  
@@ -68,7 +68,6 @@ public class TaxiSearch {
         return bytes;  
     }  
 	public static void main(String[] args) throws IOException{
-
-		System.out.println(searchRoute("1391110839","1391110838",null,null,null,""));
+		searchRoute("1391110839","1391110838",null,null,null,"");
 	}
 }
