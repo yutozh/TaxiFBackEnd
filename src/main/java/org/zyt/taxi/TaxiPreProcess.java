@@ -11,32 +11,30 @@ import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
-import org.apache.hadoop.hbase.HBaseConfiguration;
-import org.apache.hadoop.hbase.HColumnDescriptor;
-import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.client.HBaseAdmin;
-import org.apache.hadoop.hbase.mapreduce.TableMapReduceUtil;
-import org.apache.hadoop.hbase.mapreduce.TableOutputFormat;
-import org.zyt.taxi.TaxiMapper.MyGroupingComparator;
-import org.zyt.taxi.tp.TpWritable;
+import org.zyt.taxi.MRTools.TaxiMapper;
+import org.zyt.taxi.MRTools.TaxiMapper.MyGroupingComparator;
+import org.zyt.taxi.MRTools.TaxiReducer;
+import org.zyt.taxi.MRTools.TpWritable;
+import org.zyt.taxi.Utils.RecordTime;
 
-public class TaxiMain {
+public class TaxiPreProcess {
 	public static void main(String[] args) throws Exception {
-		TaxiMain.handleRoute(args);
+		TaxiPreProcess.run(args);
+//		TaxiInsert.insertRouteAndTp();
 	}
 	
-	public static boolean handleRoute(String[] args) throws IOException, URISyntaxException, ClassNotFoundException, InterruptedException {
+	public static boolean run(String[] args) throws IOException, URISyntaxException, ClassNotFoundException, InterruptedException {
 		if(args.length < 2){
 			args = new String[]{
-					"hdfs://localhost:9000/taxi/input",
-					"hdfs://localhost:9000/taxi/output"
+					"hdfs://master:9000/taxi/input",
+					"hdfs://master:9000/taxi/output",
+					"hadoop"
 			};
 		}
 		try {
 			// 删除output中已有的数据
-			FileSystem fileSystem = FileSystem.get(new URI(args[0]), new Configuration());  
+			FileSystem fileSystem = FileSystem.get(new URI(args[0]), new Configuration(), args[2]);
 			 if (fileSystem.exists(new Path(args[0]))) {  
 			      fileSystem.delete(new Path(args[1]), true);  
 			  }
@@ -50,7 +48,7 @@ public class TaxiMain {
 	//
 //			Job job = Job.getInstance(conf, "taxi");
 	//
-//			job.setJarByClass(TaxiMain.class);
+//			job.setJarByClass(TaxiPreProcess.class);
 //			job.setMapperClass(TaxiMapper.class);
 //			job.setReducerClass(TaxiTableReducer.class);
 	//
@@ -75,7 +73,7 @@ public class TaxiMain {
 	        
 			Job job = Job.getInstance(conf, "taxi");
 
-			job.setJarByClass(TaxiMain.class);
+			job.setJarByClass(TaxiPreProcess.class);
 			job.setMapperClass(TaxiMapper.class);
 			job.setReducerClass(TaxiReducer.class);
 
@@ -93,18 +91,22 @@ public class TaxiMain {
 			// Reduce 输出key，value类型
 			job.setOutputKeyClass(Text.class);
 			job.setOutputValueClass(NullWritable.class);
-	       
+
+			long time1=System.currentTimeMillis();
 			boolean isok = job.waitForCompletion(true);
-			
+			long time2=System.currentTimeMillis();
+			RecordTime.writeLocalStrOne("MR "+(time2-time1)+ "\n", "");
+
 			if(!isok){
-				System.out.print("Failed!!");
+				System.out.print("PreProcess Failed!");
 				return false;
 			}else{
-				TaxiInsert.insertRouteAndTp();
+				System.out.println("PreProcess Succeed!");
+				return true;
 			}
 		} catch (Exception e) {
+			e.printStackTrace();
 			return false;
 		}
-		return true;
 	}
 }

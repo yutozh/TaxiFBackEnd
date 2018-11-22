@@ -1,4 +1,4 @@
-package org.zyt.taxi;
+package org.zyt.taxi.Utils;
 
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
@@ -13,7 +13,7 @@ public class MD5 {
      * @param info 字符串
      * @return 该字符串的MD5值
      */
-    static String getMD5(String info) {
+    public static String getMD5(String info) {
         try {
             //获取 MessageDigest 对象，参数为 MD5 字符串，表示这是一个 MD5 算法（其他还有 SHA1 算法等）：
             MessageDigest md5 = MessageDigest.getInstance("MD5");

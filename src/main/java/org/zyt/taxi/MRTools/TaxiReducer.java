@@ -1,29 +1,19 @@
-package org.zyt.taxi;
+package org.zyt.taxi.MRTools;
 
-import java.awt.print.Printable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import org.apache.hadoop.hbase.mapreduce.TableReducer;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapreduce.Reducer;
-import org.apache.hadoop.hbase.client.Mutation;
-import org.apache.hadoop.hbase.client.Put;
-
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.zyt.taxi.tp.TpWritable;
 
 import com.graphhopper.GraphHopper;
 import com.graphhopper.PathWrapper;
@@ -47,17 +37,17 @@ import com.graphhopper.util.StopWatch;
 import com.graphhopper.util.Translation;
 import com.graphhopper.util.TranslationMap;
 
-public class TaxiTableReducer extends TableReducer<Text, TpWritable, NullWritable>{
+public class TaxiReducer extends Reducer<Text, TpWritable, Text, NullWritable>{
 	private Text result = new Text();
 	private NullWritable n = NullWritable.get();
 	@Override
 	protected void reduce(Text key, Iterable<TpWritable> values,
-			Reducer<Text, TpWritable, NullWritable, Mutation>.Context context)
+			Reducer<Text, TpWritable, Text, NullWritable>.Context context)
 			throws IOException, InterruptedException {
 		String s = new String();
-		String colFamily = "info";
 		
 		int flag = 0;
+		int cnt = 0;
 		ArrayList<TpWritable> tpList = new ArrayList<>();
 		
 		// values包含同一辆车的轨迹点数据
@@ -90,25 +80,32 @@ public class TaxiTableReducer extends TableReducer<Text, TpWritable, NullWritabl
 					String item = new String();
 					
 					try {
-						// 地图匹配
-						List<TpWritable> matchedTp = new RouteMatching().startMatching(tpList, ""+(int)(Math.random()*100000));
+						// 匹配后的路径总长度 平均速度(km/h)
+						double afterLength[] = {0};
+						double avgSpeed = 0;
+						
+						// 开始地图匹配
+//						List<TpWritable> matchedTp = new RouteMatching().startMatching(tpList,afterLength,  ""+(int)(Math.random()*100000));
+						List<TpWritable> matchedTp = new RouteMatching().startMatching(tpList,afterLength, ""+key.toString().split(" ")[0]);
+						
 						// 按匀速计算各个点的时间戳
 						Long startTime = tpList.get(0).getTimestamp();
 						Long endTime = tpList.get(tpList.size()-1).getTimestamp();
 						double interval = (endTime-startTime)*1.0/(matchedTp.size()-1);
-				
-						String rowkey = startTime.toString() + " " + endTime.toString() + " " + MD5.getMD5(key.toString());
-						Put put = new Put(rowkey.getBytes());
-						put.addColumn(colFamily.getBytes(), "carID".getBytes(), key.toString().split(" ")[0].getBytes());
+						
 						for (int i = 0; i < matchedTp.size(); i++) {
 							TpWritable t = matchedTp.get(i);
-							// 每个轨迹点一列
-							put.addColumn(colFamily.getBytes(), (""+i).getBytes(), (t.getLat()+" "+t.getLng()+" "+Math.round(startTime+interval*i)).getBytes());
+							item += ","+t.getLat()+" "+t.getLng()+" "+Math.round(startTime+interval*i);
 						}
-						context.write(NullWritable.get(), put);
+						
+						avgSpeed = afterLength[0]/ (endTime-startTime) * 3.6;
+						// Reduce输出的结果格式为： 车辆编号 + 起始时间 + 终止时间 + 总路程 + 平均速度 + ‘;’ + 匹配后的载客轨迹点数据
+						result.set(key.toString().split(" ")[0]+" "+startTime+" "+endTime+" "+afterLength[0]+" "+avgSpeed+ ";"+item.substring(1));
+						context.write(result, n);
 					} catch (Exception e) {
 						// 在地图匹配中若发生错误（轨迹点太少、误差太大）则放弃这条轨迹
 					}
+					System.out.println("Num of Path:" + String.valueOf(++cnt));
 					tpList.clear();
 					flag = 0;
 				}
@@ -176,15 +173,15 @@ public class TaxiTableReducer extends TableReducer<Text, TpWritable, NullWritabl
 	
 	// 地图匹配算法
 	public static class RouteMatching{
-		private	String[] setings = {"action=match","gpx=/home/hadoop/taxi/map-matching-0.9/route/route8.gpx","graph.location=/home/hadoop/taxi/map-matching-0.9/graph-cache"};
+		private	String[] setings = {"action=match","gpx=/home/whu/taxi/map-matching-0.9/route/route8.gpx","graph.location=/home/whu/taxi/map-matching-0.9/graph-cache"};
 		private CmdArgs args = CmdArgs.read(setings);
-		private String grahpPath = "/home/hadoop/taxi/map-matching-0.9/graph-cache";
+		private String grahpPath = "/home/whu/taxi/map-matching-0.9/graph-cache";
 		
 		private final Logger logger = LoggerFactory.getLogger(getClass());
 		
 		// random是为了区别在本地输出的文件
-		public List<TpWritable> startMatching(ArrayList<TpWritable> tpList, String random) throws Exception {
-			System.out.println(args);
+		public List<TpWritable> startMatching(ArrayList<TpWritable> tpList, double afterLength[], String random) throws Exception {
+//			System.out.println(args);
 			GraphHopper hopper = new GraphHopperOSM().init(args);
 	        hopper.getCHFactoryDecorator().setEnabled(false);
 	        
@@ -229,9 +226,9 @@ public class TaxiTableReducer extends TableReducer<Text, TpWritable, NullWritabl
                 MatchResult mr = mapMatching.doWork(inputGPXEntries);
                 matchSW.stop();
 
-                System.out.println("\tmatches:\t" + mr.getEdgeMatches().size() + ", gps entries:" + inputGPXEntries.size());
-                System.out.println("\tgpx length:\t" + (float) mr.getGpxEntriesLength() + " vs " + (float) mr.getMatchLength());
-                System.out.println("\tgpx time:\t" + mr.getGpxEntriesMillis() / 1000f + " vs " + mr.getMatchMillis() / 1000f);
+//                System.out.println("\tmatches: ID：\t" + random + "\t"+ + mr.getEdgeMatches().size() + ", gps entries:" + inputGPXEntries.size() + " "+ tpList.size());
+//                System.out.println("\tgpx length: Before：\t" + (float) mr.getGpxEntriesLength() + " vs After：" + (float) mr.getMatchLength());
+//                System.out.println("\tgpx time: Before：\t" + mr.getGpxEntriesMillis() / 1000f + " vs After：" + mr.getMatchMillis() / 1000f);
 
                 InstructionList il;
                 if (instructions.isEmpty()) {
@@ -242,7 +239,7 @@ public class TaxiTableReducer extends TableReducer<Text, TpWritable, NullWritabl
                     new PathMerger().doWork(matchGHRsp, Collections.singletonList(path), tr);
                     il = matchGHRsp.getInstructions();
                 }
-                
+                afterLength[0] =  mr.getMatchLength();
                 return getTpWritableFromEntries(new GPXFile(mr, il).getEntries(),random);
 			} catch (IllegalArgumentException ex) {
 				importSW.stop();
@@ -301,4 +298,3 @@ public class TaxiTableReducer extends TableReducer<Text, TpWritable, NullWritabl
 		}
 	}
 }
-

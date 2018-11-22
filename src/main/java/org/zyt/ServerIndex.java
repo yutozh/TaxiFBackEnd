@@ -1,13 +1,10 @@
 package org.zyt;
 
 import java.io.ByteArrayOutputStream;
-import java.io.Console;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,17 +19,15 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.yarn.webapp.hamlet.Hamlet.P;
 import org.apache.commons.fileupload.FileItem;
-import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload; 
-import org.zyt.taxi.TaxiElasticSearch;
-import org.zyt.taxi.TaxiMain;
+import org.zyt.taxi.ESTools.TaxiElasticSearch;
+import org.zyt.taxi.TaxiInsert;
+import org.zyt.taxi.TaxiPreProcess;
 import org.zyt.taxi.TaxiSearch;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
 /**
@@ -70,10 +65,14 @@ public class ServerIndex extends HttpServlet {
 	 * @see HttpServlet#doGet(HttpServletRequest request, HttpServletResponse response)
 	 */
 	protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-		
-//        //得到请求的参数Map，注意map的value是String数组类型  
-//        Map map = request.getParameterMap();  
-//        Set<String> keySet = map.keySet();  
+		/* 设置响应头允许ajax跨域访问 */
+		response.setHeader("Access-Control-Allow-Origin", "*");
+		/* 星号表示所有的异域请求都可以接受， */
+		response.setHeader("Access-Control-Allow-Methods", "GET,POST");
+		PrintWriter out = response.getWriter();
+        //得到请求的参数Map，注意map的value是String数组类型
+        Map map = request.getParameterMap();
+        Set<String> keySet = map.keySet();
 //        for (String key : keySet) {  
 //           String[] values = (String[]) map.get(key);  
 //           for (String value : values) {  
@@ -90,10 +89,25 @@ public class ServerIndex extends HttpServlet {
 //        int intBits2 = Float.floatToIntBits(40f);
 //		baos.write(getBytes(intBits));
 //		baos.write(getBytes(intBits2));
-		
-		PrintWriter out = response.getWriter();
-		out.write(TaxiElasticSearch.getCarNum());
-		
+
+
+		keySet.contains("insert");
+		if (keySet.contains("insert")){
+			try {
+				TaxiInsert.insertRouteAndTp();
+				out.write("{\"status\":\"success\"}");
+			}catch (Exception e){
+				out.write("{\"status\":\"failed\"}");
+			}
+			return;
+		}else {
+			try {
+				out.write(TaxiElasticSearch.getCarNum());
+			}catch (Exception e) {
+				e.printStackTrace(out);
+			}
+			return;
+		}
 	}
 
 	/**
@@ -188,11 +202,9 @@ public class ServerIndex extends HttpServlet {
 		        }
 	        }
 	  
-	        
-	        
-	        
-	        
-	        
+
+	        // Search
+
 			Type t  = new TypeToken<Map<String,String>>(){}.getType();
 			Map<String,String> map = new Gson().fromJson(request.getParameter("params"), t);
 
@@ -230,10 +242,10 @@ public class ServerIndex extends HttpServlet {
 	public static boolean saveToHDFS(String filename, byte[] buff) { 
         try {
                 Configuration conf = new Configuration();  
-                conf.set("fs.defaultFS","hdfs://localhost:9000");
+                conf.set("fs.defaultFS","hdfs://master:9000");
                 conf.set("fs.hdfs.impl","org.apache.hadoop.hdfs.DistributedFileSystem");
                 FileSystem fs = FileSystem.get(conf);
-                filename = "hdfs://localhost:9000/taxi/input/"+filename;
+                filename = "hdfs://master:9000/taxi/input/"+filename;
                 if(fs.exists(new Path(filename))){
                     fs.delete(new Path(filename), true);
                 }
@@ -243,7 +255,12 @@ public class ServerIndex extends HttpServlet {
                 os.close();
                 fs.close();
                 // 开始处理
-                return TaxiMain.handleRoute(new String[0]);
+				if(TaxiPreProcess.run(new String[0])){
+//					return TaxiInsert.insertRouteAndTp();
+					return true;
+				}else {
+					return false;
+				}
                 
         } catch (Exception e) {  
                 e.printStackTrace(); 

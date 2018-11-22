@@ -9,17 +9,21 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.client.Table;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 
-import ch.hsr.geohash.GeoHash;
+import org.zyt.taxi.ESTools.TaxiElasticSearch;
+import org.zyt.taxi.HBTools.TaxiHbase;
+import org.zyt.taxi.Utils.MD5;
+import org.zyt.taxi.Utils.RecordTime;
 
 public class TaxiInsert {
 	private static final String SEPARATOR = ",";
-	public static void insertRouteAndTp () {
+	public static void main(String[] args) throws Exception {
+		insertRouteAndTp();
+	}
+	public static boolean insertRouteAndTp () {
         try{
         	String path = "/taxi/output/";
             String fileName = "part-r-00000";
@@ -28,7 +32,7 @@ public class TaxiInsert {
             String colFamily = "info";
             
             Configuration conf = new Configuration();
-            conf.set("fs.defaultFS", "hdfs://localhost:9000");
+            conf.set("fs.defaultFS", "hdfs://master:9000");
             conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
             
             FileSystem fs = FileSystem.get(conf);
@@ -53,8 +57,11 @@ public class TaxiInsert {
                     TaxiHbase.init();
                     // 获取ES的连接
 					TaxiElasticSearch.getClient();
-                    // 轨迹表 与 点表          
-                    String content = d.readLine(); //读取文件一行
+                    // 轨迹表 与 点表
+
+					long time1=System.currentTimeMillis();
+
+					String content = d.readLine(); //读取文件一行
                     while(content != null){
                     	String carID = content.split(";")[0].split(" ")[0];
                     	String startTime = content.split(";")[0].split(" ")[1];
@@ -134,20 +141,30 @@ public class TaxiInsert {
 						TaxiHbase.insertIntoTable(tableName1, put1);
                     	content = d.readLine();
                     }
-            		TaxiHbase.close();
+					long time2=System.currentTimeMillis();
+
+                    System.out.println("HDFS Time:"+(time2-time1));
+
+					RecordTime.writeLocalStrOne("Insert "+(time2-time1)+ "\n", "");
+
+					TaxiHbase.close();
             		TaxiElasticSearch.closeClient();
             		
                     d.close(); //关闭文件
                     fs.close(); //关闭hdfs
+                    return true;
         		} catch (Exception e) {
         		        e.printStackTrace();
+        		        return false;
         		}
             }else{
-                System.out.println("文件不存在");
+                System.out.println("File to insert is not exists, please check");
+                return false;
             }
  
         }catch (Exception e){
             e.printStackTrace();
+            return false;
         }
 	}
 	

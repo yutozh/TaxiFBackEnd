@@ -1,4 +1,4 @@
-package org.zyt.taxi;
+package org.zyt.taxi.HBTools;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -20,17 +20,14 @@ import org.apache.hadoop.hbase.ZooKeeperConnectionException;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
-import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Table;
-import org.apache.hadoop.hbase.filter.Filter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.zyt.taxi.tp.TpWritable;
+import org.zyt.taxi.Utils.MD5;
 
-import sun.tools.tree.ThisExpression;
 import ch.hsr.geohash.GeoHash;
 
 public class TaxiHbase {
@@ -67,7 +64,7 @@ public class TaxiHbase {
             String colFamily = "info";
             
             Configuration conf = new Configuration();
-            conf.set("fs.defaultFS", "hdfs://localhost:9000");
+            conf.set("fs.defaultFS", "hdfs://master:9000");
             conf.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");
             FileSystem fs = FileSystem.get(conf);
             Path file = new Path(path + fileName);
@@ -140,7 +137,8 @@ public class TaxiHbase {
 
 	public static void init(){
 		myConf = HBaseConfiguration.create();
-		myConf.set("hbase.rootdir", "hdfs://localhost:9000/hbase");
+		myConf.set("hbase.rootdir", "hdfs://master:9000/hbase");
+		myConf.set("hbase.zookeeper.quorum","master");
 		try{
 			myConn = ConnectionFactory.createConnection(myConf);
 			admin = myConn.getAdmin();
@@ -265,6 +263,6 @@ public class TaxiHbase {
 		for(Cell cell:cells){
 			res.put(new String(CellUtil.cloneQualifier(cell)), new String(CellUtil.cloneValue(cell)));
 		}
-		return res.get("startTime") + "," + res.get("endTime") + "," +  res.get("avgSpeed") + "," + res.get("afterLength") + "," + res.get("tpList"); 
+		return res.get("carID") + "," + res.get("startTime") + "," + res.get("endTime") + "," +  res.get("avgSpeed") + "," + res.get("afterLength") + "," + res.get("tpList");
 	}
 }

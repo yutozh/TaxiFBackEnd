@@ -1,14 +1,12 @@
-package org.zyt.taxi;
+package org.zyt.taxi.MRTools;
 
 import java.io.IOException;
-import java.util.Comparator;
 
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.RawComparator;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.WritableComparator;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.zyt.taxi.tp.TpWritable;
 
 
 public class TaxiMapper extends Mapper<LongWritable, Text, Text, TpWritable>{
